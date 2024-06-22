@@ -41,20 +41,25 @@ Adafruit_APDS9960 apds;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 char auth[] = "eSaU9onK7L9NqYqzpv-63FuGL-Ct9ovd";
+//char ssid[] = "JojoTocatoca";
+//char pass[] = "Amongus2373";
 char ssid[] = "CyberiaB152_2.4Ghz";
 char pass[] = "B152@2002";
 
 uint32_t color = 0;
 int distance;
-bool ONOFF = false;
-bool isHibernating = false;
+bool hibernate = true;
+bool GestureON= false;
 const int HIBERNATION_DISTANCE = 200;  // Distance threshold for hibernation in millimeters
-
+unsigned long lastGestureTime = 0;
+const unsigned long gestureInterval = 10000; // 10 seconds
+bool ledState = false; // LED strip state
+bool done_interaction=false;
 void setup() {
   Serial.begin(115200);
   delay(100);
   Blynk.begin(auth, ssid, pass);
-  pinMode(INT_PIN, INPUT_PULLUP);
+    pinMode(INT_PIN, INPUT);
   pinMode(buzzer, OUTPUT);
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -63,67 +68,135 @@ void setup() {
     Serial.println("Connecting to WiFi...");
   }
 
-#if defined(__AVR_ATtiny85__) && (F_CPU == 16000000)
-  clock_prescale_set(clock_div_1);
-#endif
-
+  // Initialize NeoPixel strip
   strip.begin();
-  strip.show();
-  strip.setBrightness(BRIGHTNESS);
+  strip.show(); // Initialize all pixels to 'off'
 
-  if (!apds.begin()) {
-    Serial.println("Failed to initialize device! Please check your wiring.");
-  } else {
-    Serial.println("Device initialized!");
-    apds.enableProximity(true);
-    apds.enableGesture(true);
-    apds.setProximityInterruptThreshold(0, 175);
-    apds.enableProximityInterrupt();
+  if(!apds.begin()){
+    Serial.println("failed to initialize device! Please check your wiring.");
   }
+  else Serial.println("Device initialized!");
+
+  
+  // Enable proximity engine and interrupts
+  apds.enableProximity(true);
+  //apds.enableGesture(true);
+    // Optionally set the interrupt threshold
+  //apds.setProximityInterruptThreshold(50, 100, 1);
+  //apds.enableProximityInterrupt();
+  //apds.setProximityInterruptThreshold(0, 175);
+
+  //enable the proximity interrupt
+  //apds.enableProximityInterrupt();
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-      ;
+    for (;;);
   }
 
   delay(2000);
   display.setTextColor(WHITE);
+  enterHibernateMode();
+  // Attach the interrupt pin to an ISR
+  //attachInterrupt(digitalPinToInterrupt(INT_PIN), proximityInterrupt, FALLING);
 }
 
 void loop() {
-  distance = apds.readProximity();
+  //distance = apds.readProximity();
+  //uint8_t gesture = apds.readGesture();
+    // Read color data
+  done_interaction=false;
+  Blynkrun();
+  //start main program
+  OLED_display(2, 0, "Rise and  Shine!");
+  play_tone1();
+
+  while(!done_interaction){
+  if(!hibernate){
+  OLED_display(2, 0, "How are you?");
+  }
+  
+  delay(2000);//
+    Blynkrun();
+if (!GestureON){
+  done_interaction=false;
+    // If no gesture was detected, check for proximity
+    apds.enableGesture(false);
+  // Read proximity data
+  uint8_t proximity_data = apds.readProximity();
+  Serial.println(proximity_data);
+  // Handle proximity data
+  if (proximity_data > 50) {
+    exitHibernateMode();
+    GestureON=true;
+  } 
+  if (proximity_data <= 10) {
+    enterHibernateMode();
+  }
+
+        }
+
+// Check if a gesture has occurred
+if(GestureON){
+  Serial.println("Enter gesture interaction mode");
+  delay(2000);
+  lastGestureTime = millis();
+  while(GestureON){
+  apds.enableGesture(true);
   uint8_t gesture = apds.readGesture();
-  strip.fill(color, 0, strip.numPixels());
-  strip.show();
-  display.display();
   Blynk.run();
-
-  if (!digitalRead(INT_PIN)) {
-    Serial.println(distance);
-    apds.clearInterrupt();
-  }
-
-  if (!isHibernating) {
-    if (distance <= 175 && gesture) {
-      handGesture(gesture);  // Handle gesture if within active range
+  ledSet();
+  if (gesture != 0)
+      {
+        
+      Serial.println("in the loop, need more accurate gesture");
+      handGesture();
+      lastGestureTime = millis();
+      GestureON = true;
+    //exitHibernateMode();
+    
+      }
+  if (millis() - lastGestureTime > gestureInterval) {
+      // It's been more than 10 seconds since the last gesture
+      Serial.println("abort");
+      GestureON = false;
+      apds.enableGesture(false);
+      done_interaction=true;
+      }
     }
-
-    // Check for hibernation condition
-    /*if (distance > HIBERNATION_DISTANCE) {
-      enterHibernation();  // If distance exceeds threshold, hibernate
-    }
-  } else {
-    // Circuit is hibernating, check for wake-up condition
-    if (distance <= 175 && gesture) {
-      exitHibernation();  // Resume normal operation upon return
-    }
-    // Additional low-power tasks or sleep mode here
-  }*/
-  }
 }
+delay(50);//for system stability
+  }
+OLED_display(2,0,"Thanks for using me!");
+play_tone2();
+delay(1000);
 
-void handGesture(uint8_t gesture) {
+
+
+    // Additional low-power tasks or sleep mode here 
+}
+void Blynkrun(){
+    Blynk.run();
+    if (ledState) {
+      apds.enableProximity(false);
+    while(ledState){
+      
+      NeoAmbience();
+      Blynk.run();  
+      ledSet();
+    }
+    
+  } 
+  else {
+    // Turn off NeoPixel strip
+    strip.clear();
+    strip.show();
+    apds.enableProximity(true);
+  }
+  
+}
+void handGesture() {
+  uint8_t gesture = apds.readGesture();
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0, 0);
@@ -133,6 +206,7 @@ void handGesture(uint8_t gesture) {
       display.print("^ UP");
       Serial.println("^ UP");
       color = strip.Color(255, 0, 255);  // Magenta color
+      ledSet();
       tone(buzzer, D4, HALF);
       delay(HALF);
       noTone(buzzer);
@@ -141,6 +215,7 @@ void handGesture(uint8_t gesture) {
       display.print("v DOWN");
       Serial.println("v DOWN");
       color = strip.Color(255, 255, 255);  // White
+      ledSet();
       tone(buzzer, C4, HALF);
       delay(HALF);
       noTone(buzzer);
@@ -149,6 +224,7 @@ void handGesture(uint8_t gesture) {
       display.print("> RIGHT");
       Serial.println("> RIGHT");
       color = strip.Color(255, 180, 0);  // Orange
+      ledSet();
       tone(buzzer, E4, HALF);
       delay(HALF);
       noTone(buzzer);
@@ -157,6 +233,7 @@ void handGesture(uint8_t gesture) {
       display.print("< LEFT");
       Serial.println("< LEFT");
       color = strip.Color(0, 255, 0);  // Green
+      ledSet();
       tone(buzzer, G4, HALF);
       delay(HALF);
       noTone(buzzer);
@@ -164,35 +241,75 @@ void handGesture(uint8_t gesture) {
     default:
       return;
   }
-  ledSet();
 }
 
-void enterHibernation() {
-  // Put the circuit into hibernation mode
-  isHibernating = true;
+void NeoAmbience(){
+    // Enable color sensing
+  
+  apds.enableColor(true);
+  uint16_t r, g, b, c;
+    while(!apds.colorDataReady()){
+    delay(5);
+  }
+  apds.getColorData(&r, &g, &b, &c);
+  Serial.print("c:");
+  Serial.println(c);
+  // Calculate ambient light intensity
+  uint16_t ambient_light = c;
 
-  // Turn off NeoPixel LEDs
+  // Map the ambient light intensity to NeoPixel brightness (0-255)
+  uint8_t neo_brightness = map(ambient_light, 0, 90, 255, 0);
+  Serial.print("neo_brightness:");
+  Serial.println(neo_brightness);
+
+  if (c >= 0 && c <= 5) {
+    // Maximum brightness
+    neo_brightness = 255;
+  } else if (c > 5 && c <= 20) {
+    // Dim by half
+    neo_brightness = 128;
+  } else {
+    // Turn off
+    neo_brightness = 0;
+  }
+    // Set the brightness of NeoPixel strip
+  strip.setBrightness(neo_brightness);
+      // Update the strip to set new brightness
+    strip.show();
+    apds.enableColor(false);
+}
+void enterHibernateMode() {
+  hibernate = true;
+  if (!hibernate) return;
+  
+  // Turn off NeoPixel strip
   strip.clear();
   strip.show();
-
+  
   // Clear OLED display
   display.clearDisplay();
   display.display();
-
-  // Additional actions to reduce power consumption
-  // For example: disable sensors, enter sleep mode if supported
+  
+  //hibernate = true;
 }
-
-void exitHibernation() {
-  // Exit hibernation mode and resume normal operation
-  isHibernating = false;
-
-  // Initialize NeoPixel LEDs and OLED display
-  ledSet();  // Restore last known LED color
-  OLED_display(2, 0, "Resumed!");
-
-  // Additional actions to resume full functionality
-  // For example: re-enable sensors, wake from sleep mode
+void exitHibernateMode() {
+    
+  hibernate = false;
+  if (hibernate) return;
+  
+  // Turn on NeoPixel strip
+  strip.fill(strip.Color(255,255,255)); // White color for example
+  strip.show();
+  
+  // Turn on OLED display with some text
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0,0);
+  display.println(F("Proximity Detected!"));
+  display.display();
+  
+  //hibernate = false;
 }
 
 void ledSet() {
@@ -249,4 +366,7 @@ color = strip.Color(255, 180, 0);  // Orange
 BLYNK_WRITE(V4) {
 Serial.println("Change to green");
 color = strip.Color(0, 255, 0);  // Green
+}
+BLYNK_WRITE(V5) {
+  ledState = param.asInt(); // Get value as integer
 }
