@@ -208,7 +208,7 @@ void handGesture(int gesture) {
 if(gesture==APDS9960_UP){
       display.print("^ UP");
       Serial.println("^ UP");
-      color = strip.Color(255, 0, 255);  // Magenta color
+      color = strip.Color(0, 0, 255);  // red-green
       ledSet();
       tone(buzzer, D4, HALF);
       delay(HALF);
@@ -235,7 +235,7 @@ if(gesture==APDS9960_RIGHT){
 if(gesture==APDS9960_LEFT){
       display.print("< LEFT");
       Serial.println("< LEFT");
-      color = strip.Color(0, 255, 0);  // Green
+      color = strip.Color(120, 0, 0);  // Green
       ledSet();
       tone(buzzer, G4, HALF);
       delay(HALF);
