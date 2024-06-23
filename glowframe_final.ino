@@ -141,21 +141,22 @@ if(GestureON){
   Serial.println("Enter gesture interaction mode");
   delay(2000);
   lastGestureTime = millis();
-  while(GestureON){
+  apds.enableProximity(true);
   apds.enableGesture(true);
+  while(GestureON){
+
   uint8_t gesture = apds.readGesture();
-  Blynk.run();
-  ledSet();
-  if (gesture != 0)
+
+  if (gesture==APDS9960_DOWN|gesture==APDS9960_UP|gesture==APDS9960_LEFT|gesture==APDS9960_RIGHT)
       {
         
       Serial.println("in the loop, need more accurate gesture");
-      handGesture();
+      handGesture(gesture);
       lastGestureTime = millis();
       GestureON = true;
-    //exitHibernateMode();
     
       }
+
   if (millis() - lastGestureTime > gestureInterval) {
       // It's been more than 10 seconds since the last gesture
       Serial.println("abort");
@@ -163,9 +164,11 @@ if(GestureON){
       apds.enableGesture(false);
       done_interaction=true;
       }
+  Blynk.run();
+  ledSet();
     }
 }
-delay(50);//for system stability
+
   }
 OLED_display(2,0,"Thanks for using me!");
 play_tone2();
@@ -195,14 +198,14 @@ void Blynkrun(){
   }
   
 }
-void handGesture() {
-  uint8_t gesture = apds.readGesture();
+void handGesture(int gesture) {
+
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0, 0);
 
-  switch (gesture) {
-    case APDS9960_UP:
+
+if(gesture==APDS9960_UP){
       display.print("^ UP");
       Serial.println("^ UP");
       color = strip.Color(255, 0, 255);  // Magenta color
@@ -210,8 +213,8 @@ void handGesture() {
       tone(buzzer, D4, HALF);
       delay(HALF);
       noTone(buzzer);
-      break;
-    case APDS9960_DOWN:
+}
+if(gesture==APDS9960_DOWN){
       display.print("v DOWN");
       Serial.println("v DOWN");
       color = strip.Color(255, 255, 255);  // White
@@ -219,8 +222,8 @@ void handGesture() {
       tone(buzzer, C4, HALF);
       delay(HALF);
       noTone(buzzer);
-      break;
-    case APDS9960_LEFT:
+}
+if(gesture==APDS9960_RIGHT){
       display.print("> RIGHT");
       Serial.println("> RIGHT");
       color = strip.Color(255, 180, 0);  // Orange
@@ -228,8 +231,8 @@ void handGesture() {
       tone(buzzer, E4, HALF);
       delay(HALF);
       noTone(buzzer);
-      break;
-    case APDS9960_RIGHT:
+}
+if(gesture==APDS9960_LEFT){
       display.print("< LEFT");
       Serial.println("< LEFT");
       color = strip.Color(0, 255, 0);  // Green
@@ -237,10 +240,10 @@ void handGesture() {
       tone(buzzer, G4, HALF);
       delay(HALF);
       noTone(buzzer);
-      break;
-    default:
-      return;
-  }
+}
+
+
+
 }
 
 void NeoAmbience(){
@@ -352,20 +355,20 @@ void play_tone2() {
 }
 
 BLYNK_WRITE(V1) {
-Serial.println("Change to Magenta");
-color = strip.Color(255, 0, 255);  // Magenta color
+Serial.println("Change to red-green");
+color = strip.Color(0, 0, 255);  // red-green
 }
 BLYNK_WRITE(V2) {
-Serial.println("Change to white");
-color = strip.Color(255, 255, 255);  // White
+Serial.println("Change to red");
+color = strip.Color(255, 255, 255);  // red
 }
 BLYNK_WRITE(V3) {
-Serial.println("Change to orange");
-color = strip.Color(255, 180, 0);  // Orange  
+Serial.println("Change to orange-green");
+color = strip.Color(255, 180, 0);  // orange-green
 }
 BLYNK_WRITE(V4) {
-Serial.println("Change to green");
-color = strip.Color(0, 255, 0);  // Green
+Serial.println("Change to mixed");
+color = strip.Color(120, 0, 0);  // mixed
 }
 BLYNK_WRITE(V5) {
   ledState = param.asInt(); // Get value as integer
